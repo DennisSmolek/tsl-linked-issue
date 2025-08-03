@@ -1,8 +1,8 @@
-import { type JSX, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import * as THREE from "three/webgpu";
-import type { ColorNode, ShaderNodeObject } from "types/three-tsl";
+import type { ColorNode, ShaderNodeObject } from "../types/three-tsl";
 import type Node from "three/src/nodes/core/Node.js";
-import { color } from "three/tsl";
+import { color, uniform, select } from "three/tsl";
 
 interface BoxProps {
     colorNode?: ColorNode;
@@ -17,9 +17,28 @@ interface BoxProps {
 
 export function Box(props: BoxProps) {
     const meshRef = useRef<THREE.Mesh>(null!);
-    const [hovered, setHover] = useState(false);
     const [active, setActive] = useState(false);
-    const { colorNode, fragmentNode, vertexNode, ...meshProps } = props;
+    const { colorNode, ...meshProps } = props;
+
+    const { uniforms, finalColorNode } = useMemo(() => {
+        const uniforms = {
+            hovered: uniform(false),
+            colorA: uniform(color("orange")),
+            colorB: uniform(color("hotpink")),
+        };
+        const finalColorNode =
+            colorNode ??
+            select(uniforms.hovered, uniforms.colorB, uniforms.colorA);
+
+        // Debug logging
+        console.log(`BoxR3F instance created:`, {
+            uniformsId: uniforms.hovered.id,
+            hoveredValue: uniforms.hovered.value,
+            finalColorNodeId: finalColorNode.id,
+        });
+
+        return { uniforms, finalColorNode };
+    }, [colorNode]);
 
     return (
         <mesh
@@ -27,16 +46,10 @@ export function Box(props: BoxProps) {
             ref={meshRef}
             scale={active ? 1.5 : 1}
             onClick={() => setActive(!active)}
-            onPointerOver={() => setHover(true)}
-            onPointerOut={() => setHover(false)}>
+            onPointerOver={() => (uniforms.hovered.value = true)}
+            onPointerOut={() => (uniforms.hovered.value = false)}>
             <boxGeometry args={[1, 1, 1]} />
-            <meshStandardMaterial
-                colorNode={color("red")}
-                fragmentNode={fragmentNode}
-                vertexNode={vertexNode}
-                transparent={props.transparent}
-                side={THREE.DoubleSide}
-            />
+            <meshStandardMaterial colorNode={finalColorNode} />
         </mesh>
     );
 }
